@@ -1,0 +1,22 @@
+version: '3'
+
+services:
+  activate_validator:
+    container_name: activate-validator
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - NIMIQ_NODE_URL=http://node:8648
+      - PROMETHEUS_PORT=8000
+    volumes:
+      - "/opt/nimiq/validator/secrets:/keys" # mount your validator keys here
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    networks:
+      - app_net
+
+networks:
+  app_net:
+    external: true
