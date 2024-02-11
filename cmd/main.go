@@ -26,7 +26,9 @@ func checkConsensus(client *rpc.Client) bool {
 		consensus, err := client.IsConsensusEstablished()
 		if err != nil {
 			log.Printf("Attempt %d: Error checking consensus: %v\n", attempt, err)
-			return false // Immediately return on error
+			log.Println("Waiting 60 seconds before retrying...")
+			time.Sleep(60 * time.Second) // Sleep for 60 seconds
+			return false                 // Immediately return on error
 		}
 
 		if consensus {
