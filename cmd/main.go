@@ -192,7 +192,7 @@ func reActivateValidator(client *rpc.Client, address string) bool {
 
 func updateValidatorMetrics(address string, details *rpc.ValidatorDetails) {
 	// Update balance
-	prometheus.ValidatorBalanceGauge.WithLabelValues(address).Set(float64(details.Balance))
+	prometheus.NimiqTotalStakeGauge.WithLabelValues(address).Set(float64(details.Balance))
 
 	// Update number of stakers
 	prometheus.ValidatorNumStakersGauge.WithLabelValues(address).Set(float64(details.NumStakers))
@@ -222,16 +222,6 @@ func updateValidatorMetrics(address string, details *rpc.ValidatorDetails) {
 	prometheus.ValidatorActivatedGauge.WithLabelValues(address).Set(1)
 
 	log.Printf("Validator Prometheus metrics updated.")
-}
-
-func updateStake(client *rpc.Client, address string) (bool, error) {
-	totalStake, err := client.GetTotalStakeByValidatorAddress(address)
-	if err != nil {
-		log.Println("Error fetching total stake:", err)
-		return false, err
-	}
-	prometheus.NimiqTotalStakeGauge.WithLabelValues(address).Set(float64(totalStake))
-	return true, nil
 }
 
 func checkSufficientBalance(client *rpc.Client, address string) (bool, float64) {
@@ -349,7 +339,7 @@ func main() {
 		if !state {
 			log.Printf("Something went wrong. with the validator!")
 		}
-		_, err := updateStake(client, validatorAddress)
+		_, _ = checkSufficientBalance(client, validatorAddress)
 		if err != nil {
 			log.Printf("Error updating stake: %v", err)
 		}
