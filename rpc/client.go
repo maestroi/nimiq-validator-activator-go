@@ -17,7 +17,7 @@ type Client struct {
 func NewClient() *Client {
 	nodeURL := os.Getenv("NIMIQ_NODE_URL") // Get the Nimiq node URL from an environment variable
 	if nodeURL == "" {
-		nodeURL = "http://95.216.199.93:8648" // Default to testnet if not specified
+		nodeURL = "http://node:8648" // Default to testnet if not specified
 	}
 	return &Client{
 		NodeURL: nodeURL,
