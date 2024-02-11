@@ -226,6 +226,25 @@ func (c *Client) SendNewValidatorTransaction(senderAddress, validatorAddress, si
 	return txResult.Data, nil
 }
 
+func (c *Client) SendReactivateValidatorTransaction(senderAddress, validatorAddress, signingSecretKey string, feeInLuna int, validityStartHeight string) (string, error) {
+	params := []interface{}{
+		senderAddress, validatorAddress, signingSecretKey, feeInLuna, validityStartHeight,
+	}
+	result, err := c.query("sendReactivateValidatorTransaction", params)
+	if err != nil {
+		return "", err
+	}
+
+	var txResult struct {
+		Data string `json:"data"`
+	}
+	if err := json.Unmarshal(result, &txResult); err != nil {
+		return "", err
+	}
+
+	return txResult.Data, nil
+}
+
 func (c *Client) SendRawTransaction(rawTx string) (string, error) {
 	result, err := c.query("sendRawTransaction", []interface{}{rawTx})
 	if err != nil {

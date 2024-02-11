@@ -148,6 +148,48 @@ func activateValidator(client *rpc.Client, address string) bool {
 	return true
 }
 
+func reActivateValidator(client *rpc.Client, address string) bool {
+	log.Printf("Address: %s", address)
+
+	sigKey, err := getPrivateKey("/keys/signing_key.txt")
+	if err != nil {
+		log.Println("Error getting signing key:", err)
+		return false
+	}
+
+	addressPrivate, err := getPrivateKey("/keys/address.txt")
+	if err != nil {
+		log.Println("Error getting address private key:", err)
+		return false
+	}
+
+	log.Println("Importing raw key.")
+	_, err = client.ImportRawKey(addressPrivate, "")
+	if err != nil {
+		log.Println("Failed to import raw key:", err)
+		return false
+	}
+
+	// Unlock the account
+	log.Println("Unlocking account.")
+	if err := client.UnlockAccount(address, "", 0); err != nil {
+		log.Println("Failed to unlock account:", err)
+		return false
+	}
+
+	log.Println("Activating Validator")
+	txHash, err := client.SendReactivateValidatorTransaction(address, address, sigKey, 500, "+0")
+	if err != nil {
+		log.Println("Failed to reactivate", err)
+		return false
+	}
+
+	log.Printf("Transaction sent successfully. Hash: %s", txHash)
+
+	prometheus.ValidatorReActivatedCounterGauge.WithLabelValues(address).Inc()
+	return true
+}
+
 func updateValidatorMetrics(address string, details *rpc.ValidatorDetails) {
 	// Update balance
 	prometheus.ValidatorBalanceGauge.WithLabelValues(address).Set(float64(details.Balance))
@@ -236,16 +278,19 @@ func checkAndHandleValidatorStatus(client *rpc.Client, address string) bool {
 	// Check if the validator is retired or jailed and handle accordingly
 	if details.Retired {
 		log.Printf("Validator is retired. Needs reactivation.")
-		// Placeholder for reactivation logic
+		reActivateValidator(client, address)
 		return false
 	}
 
 	if details.JailedFrom != nil {
-		log.Printf("Validator is jailed. Needs reactivation.")
-		// Placeholder for reactivation logic
+		log.Printf("Validator is jailed. this takes 8 epochs to be reactivated.")
+		prometheus.ValidatorJailedGauge.WithLabelValues(address).Set(1)
+		prometheus.ValidatorJailedFromGauge.WithLabelValues(address).Set(float64(*details.JailedFrom))
 		return false
 	}
 
+	prometheus.ValidatorJailedGauge.WithLabelValues(address).Set(0)
+	prometheus.ValidatorJailedFromGauge.WithLabelValues(address).Set(0)
 	log.Printf("Validator is active and in good standing.")
 	return true
 }

@@ -40,6 +40,11 @@ var (
 		Help: "Whether the validator is retired, 1 for yes, 0 for no.",
 	}, []string{"address"})
 
+	ValidatorJailedGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "nimiq_validator_jailed",
+		Help: "Block number from which the validator is jailed, 0 if not jailed.",
+	}, []string{"address"})
+
 	ValidatorJailedFromGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "nimiq_validator_jailed_from",
 		Help: "Block number from which the validator is jailed, 0 if not jailed.",
@@ -52,7 +57,12 @@ var (
 
 	ValidatorActivatedCounterGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "nimiq_validator_activated_counter",
-		Help: "Activation status of a Nimiq validator. 1 indicates activated.",
+		Help: "Activation status of a Nimiq validator.",
+	}, []string{"address"}) // Label by validator address
+
+	ValidatorReActivatedCounterGauge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "nimiq_validator_reactivated_counter",
+		Help: "Reactivation status of a Nimiq validator.",
 	}, []string{"address"}) // Label by validator address
 )
 
@@ -66,8 +76,10 @@ func init() {
 		ValidatorNumStakersGauge,
 		ValidatorInactivityFlagGauge,
 		ValidatorRetiredGauge,
+		ValidatorJailedGauge,
 		ValidatorJailedFromGauge,
 		ValidatorActivatedGauge,
 		ValidatorActivatedCounterGauge,
+		ValidatorReActivatedCounterGauge,
 	)
 }
