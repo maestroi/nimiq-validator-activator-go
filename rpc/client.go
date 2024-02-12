@@ -187,6 +187,22 @@ func (c *Client) ImportRawKey(privateKey, passphrase string) (string, error) {
 	return importResult.Data, nil
 }
 
+func (c *Client) GetCurrentBlockNumber() (int64, error) {
+	result, err := c.query("getBlockNumber", []interface{}{})
+	if err != nil {
+		return 0, err
+	}
+
+	var blockNumberResult struct {
+		Data int64 `json:"data"`
+	}
+	if err := json.Unmarshal(result, &blockNumberResult); err != nil {
+		return 0, err
+	}
+
+	return blockNumberResult.Data, nil
+}
+
 func (c *Client) UnlockAccount(address, passphrase string, duration int) error {
 	result, err := c.query("unlockAccount", []interface{}{address, passphrase, duration})
 	if err != nil {

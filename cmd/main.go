@@ -257,6 +257,8 @@ func periodicUpdates(client *rpc.Client, address string) {
 }
 
 func checkAndHandleValidatorStatus(client *rpc.Client, address string) bool {
+	const blocksForReactivation = 8000
+
 	details, err := client.GetValidatorByAddress(address)
 	if err != nil {
 		log.Println("Validator not active. Needs activation:", err)
@@ -274,13 +276,28 @@ func checkAndHandleValidatorStatus(client *rpc.Client, address string) bool {
 		return false
 	}
 
-	if details.JailedFrom != nil {
-		log.Printf("Validator is jailed. this takes 8 epochs to be reactivated.")
-		prometheus.ValidatorJailedGauge.WithLabelValues(address).Set(1)
-		prometheus.ValidatorJailedFromGauge.WithLabelValues(address).Set(float64(*details.JailedFrom))
+	currentBlockNumber, err := client.GetCurrentBlockNumber()
+	if err != nil {
+		log.Println("Error fetching current block number:", err)
 		return false
 	}
 
+	if details.JailedFrom != nil {
+		blocksSinceJailed := int(currentBlockNumber) - *details.JailedFrom
+		if blocksSinceJailed >= blocksForReactivation {
+			log.Printf("Validator is still within the jailed period. Blocks since jailed: %d", blocksSinceJailed)
+			prometheus.ValidatorJailedGauge.WithLabelValues(address).Set(1)
+			prometheus.ValidatorJailedFromGauge.WithLabelValues(address).Set(float64(*details.JailedFrom))
+			// Assuming you might want to set another gauge to represent the block difference
+			prometheus.ValidatorJailedFromGauge.WithLabelValues(address).Set(float64(blocksSinceJailed))
+			return false
+		} else {
+			log.Printf("Validator has been jailed for %d blocks, which is beyond the reactivation period.", blocksSinceJailed)
+			// Reset the jailed status if beyond the reactivation period
+			prometheus.ValidatorJailedGauge.WithLabelValues(address).Set(0)
+			// Consider adding logic here to attempt reactivation if appropriate
+		}
+	}
 	prometheus.ValidatorJailedGauge.WithLabelValues(address).Set(0)
 	prometheus.ValidatorJailedFromGauge.WithLabelValues(address).Set(0)
 	log.Printf("Validator is active and in good standing.")
