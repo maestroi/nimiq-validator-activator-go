@@ -283,19 +283,15 @@ func checkAndHandleValidatorStatus(client *rpc.Client, address string) bool {
 	}
 
 	if details.JailedFrom != nil {
-		blocksSinceJailed := int(currentBlockNumber) - *details.JailedFrom
-		if blocksSinceJailed >= blocksForReactivation {
+		blocksSinceJailed := currentBlockNumber - int64(*details.JailedFrom)
+		if blocksSinceJailed < blocksForReactivation {
+			// Validator is considered still jailed if the difference is less than 8000 blocks
 			log.Printf("Validator is still within the jailed period. Blocks since jailed: %d", blocksSinceJailed)
 			prometheus.ValidatorJailedGauge.WithLabelValues(address).Set(1)
 			prometheus.ValidatorJailedFromGauge.WithLabelValues(address).Set(float64(*details.JailedFrom))
-			// Assuming you might want to set another gauge to represent the block difference
-			prometheus.ValidatorJailedFromGauge.WithLabelValues(address).Set(float64(blocksSinceJailed))
-			return false
 		} else {
-			log.Printf("Validator has been jailed for %d blocks, which is beyond the reactivation period.", blocksSinceJailed)
-			// Reset the jailed status if beyond the reactivation period
 			prometheus.ValidatorJailedGauge.WithLabelValues(address).Set(0)
-			// Consider adding logic here to attempt reactivation if appropriate
+			// If reactivation or further action is required when a validator is no longer considered jailed, add that logic here.
 		}
 	}
 	prometheus.ValidatorJailedGauge.WithLabelValues(address).Set(0)
