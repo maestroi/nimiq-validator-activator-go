@@ -9,6 +9,8 @@ services:
     environment:
       - NIMIQ_NODE_URL=http://node:8648
       - PROMETHEUS_PORT=8000
+      - FAUCET_URL=https://faucet.pos.nimiq-testnet.com/tapit
+      - NIMIQ_NETWORK=testnet
     volumes:
       - "/opt/nimiq/validator/secrets:/keys" # mount your validator keys here
     ports:

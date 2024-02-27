@@ -2,20 +2,62 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"nimiq-validator-activator/prometheus"
 	"nimiq-validator-activator/rpc"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+var (
+	faucetURL    string
+	network      string
+	nimiqNodeUrl string
+	servingPort  = getServingPort()
+)
+
 func init() {
 	// Set log flags to include date and time in log messages
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+
+	// Fetching faucet URL from environment variable with a default value
+	nimiqNodeUrl = os.Getenv("NIMIQ_NODE_URL")
+	if nimiqNodeUrl == "" {
+		nimiqNodeUrl = "http://node:8648"
+	}
+
+	// Fetching faucet URL from environment variable with a default value
+	faucetURL = os.Getenv("FAUCET_URL")
+	if faucetURL == "" {
+		faucetURL = "https://faucet.pos.nimiq-testnet.com/tapit"
+	}
+
+	// Fetching network type from environment variable with a default value
+	network = os.Getenv("NIMIQ_NETWORK")
+	if network == "" {
+		network = "testnet" // Assuming 'testnet' as default, adjust as needed
+	}
+
+	log.Printf("Nimiq Node URL: %s", nimiqNodeUrl)
+	log.Printf("Faucet URL: %s", faucetURL)
+	log.Printf("Network: %s", network)
+}
+
+func getServingPort() string {
+	servingPortStr := os.Getenv("PROMETHEUS_PORT")
+	if servingPortStr == "" {
+		return ":8000" // Default port if not set
+	}
+	if _, err := strconv.Atoi(servingPortStr); err == nil {
+		return ":" + servingPortStr // Prefix with colon if conversion is successful
+	}
+	return ":8000" // Default to ":8000" if conversion fails
 }
 
 func checkConsensus(client *rpc.Client) bool {
@@ -66,7 +108,7 @@ func updateEpochNumberGauge(client *rpc.Client) {
 
 func getPrivateKey(filePath string) (string, error) {
 	// Read the entire file content, assuming the key is the first line of the file
-	content, err := ioutil.ReadFile(filePath)
+	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return "", err
 	}
@@ -80,7 +122,7 @@ func getPrivateKey(filePath string) (string, error) {
 }
 
 func getVoteKey(filePath string) (string, error) {
-	content, err := ioutil.ReadFile(filePath)
+	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return "", err
 	}
@@ -92,6 +134,29 @@ func getVoteKey(filePath string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("vote key not found in file")
+}
+
+func fundAddress(address string) bool {
+	// Preparing data as URL-encoded form data
+	data := url.Values{}
+	data.Set("address", address)
+
+	// Making the HTTP POST request
+	resp, err := http.PostForm(faucetURL, data)
+	if err != nil {
+		log.Printf("Error posting to faucet: %v", err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	// Checking for the HTTP response status code
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Faucet returned non-OK status: %d %s", resp.StatusCode, resp.Status)
+		return false
+	}
+
+	log.Println("Funded address successfully.")
+	return true
 }
 
 func activateValidator(client *rpc.Client, address string) bool {
@@ -237,19 +302,44 @@ func checkSufficientBalance(client *rpc.Client, address string) (bool, float64) 
 	return balanceInNim >= 100000.0, balanceInNim
 }
 
+func checkActive(client *rpc.Client, address string) bool {
+	validatorDetails, err := client.GetValidatorByAddress(address)
+	if err != nil {
+		log.Println("Error fetching validator details:", err)
+		return false
+	}
+	// Check if the validator's address matches the input address
+	// Assuming ValidatorDetails struct has an Address field
+	if validatorDetails.Address != address {
+		return false // Address does not match or validator not found
+	}
+	// Check if the balance is above the threshold and address matches
+	isActive := validatorDetails.Address == address
+	return isActive
+}
+
 func periodicUpdates(client *rpc.Client, address string) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
 		sufficient, currentBalance := checkSufficientBalance(client, address)
-		if sufficient {
+		isActive := checkActive(client, address)
+
+		if sufficient || isActive {
 			log.Printf("Sufficient balance detected: %.0f NIM. Checking validator status...", currentBalance)
 			if checkAndHandleValidatorStatus(client, address) {
 				log.Printf("Validator status checked and handled.")
 				return // Exit the loop if the validator is activated or metrics are updated
 			}
 		} else {
+			if network == "testnet" {
+				if fundAddress(address) {
+					log.Printf("Funded address successfully.")
+				} else {
+					log.Printf("Failed to fund address.")
+				}
+			}
 			stakeNeeded := 100000 - currentBalance
 			log.Printf("Insufficient balance. %.0f/100 000 NIM. missing %.0f Waiting %d seconds for next check...", currentBalance, stakeNeeded, 10)
 		}
@@ -302,7 +392,6 @@ func checkAndHandleValidatorStatus(client *rpc.Client, address string) bool {
 
 func main() {
 	const appVersion = "1.0.0"
-	const servingPort = ":8000"
 	client := rpc.NewClient()
 
 	log.Printf("Starting Nimiq Validator Activator v%s on port %s\n", appVersion, servingPort)
