@@ -444,9 +444,6 @@ func main() {
 			log.Printf("Something went wrong. with the validator!")
 		}
 		_, _ = checkSufficientBalance(client, validatorAddress)
-		if err != nil {
-			log.Printf("Error updating stake: %v", err)
-		}
 	}
 
 }
